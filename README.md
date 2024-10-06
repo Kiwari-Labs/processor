@@ -1,8 +1,14 @@
 <img align="right" width="150" height="150" top="100" src="./public/readme.jpg">
 
-# femplate • [![tests](https://github.com/refcell/femplate/actions/workflows/ci.yml/badge.svg?label=tests)](https://github.com/refcell/femplate/actions/workflows/ci.yml) ![license](https://img.shields.io/github/license/refcell/femplate?label=license) ![solidity](https://img.shields.io/badge/solidity-^0.8.17-lightgrey)
+# processor • [![tests](https://github.com/refcell/femplate/actions/workflows/ci.yml/badge.svg?label=tests)](https://github.com/refcell/femplate/actions/workflows/ci.yml) ![license](https://img.shields.io/github/license/refcell/femplate?label=license) ![solidity](https://img.shields.io/badge/solidity-^0.8.17-lightgrey)
 
-A **Clean**, **Robust** Template for Foundry Projects.
+`processor` is a Solidity library that provides utility functions to efficiently handle general computational tasks. It focuses on **optimizing performance** and **reducing gas costs** for various operations in smart contracts.  
+
+### Installing
+
+```
+npm install --save-dev @kiwarilabs/processor
+```
 
 ### Usage
 
@@ -55,4 +61,6 @@ test
 
 _These smart contracts are being provided as is. No guarantee, representation or warranty is being made, express or implied, as to the safety or correctness of the user interface or the smart contracts. They have not been audited and as such there can be no assurance they will work as intended, and users may experience delays, failures, errors, omissions, loss of transmitted information or loss of funds. The creators are not liable for any of the foregoing. Users should proceed with caution and use at their own risk._
 
+---
+All code under `src` Copyright (C) Kiwari Labs. All rights reserved.  
 See [LICENSE](./LICENSE) for more details.
