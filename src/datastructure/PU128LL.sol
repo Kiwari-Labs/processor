@@ -9,7 +9,6 @@ import {P2U128} from "../compression/P2U128.sol";
 
 library PU128LL {
     using P2U128 for uint256;
-    using P2U128 for uint128;
 
     struct List {
         uint128 s;
@@ -27,7 +26,7 @@ library PU128LL {
     }
 
     function set(List storage l, uint128 e, uint128 n, uint128 p) private {
-        l.n[e] = n.pack(p);
+        l.n[e] = P2U128.pack(n, p);
     }
 
     function back(List storage l) internal view returns (uint128 b) {
