@@ -5,7 +5,10 @@ pragma solidity >=0.8.0 <0.9.0;
 /// @author Kiwari Labs
 
 library P2U128 {
-    function pack(uint128 lb, uint128 ub) internal pure returns (uint256 result) {
+    function pack(
+        uint128 lb,
+        uint128 ub
+    ) internal pure returns (uint256 result) {
         assembly {
             result := or(shl(0x80, lb), ub)
         }
@@ -18,4 +21,3 @@ library P2U128 {
         }
     }
 }
-

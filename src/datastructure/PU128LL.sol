@@ -12,11 +12,11 @@ library PU128LL {
 
     struct List {
         uint128 s;
+        uint128 md; // enabling traversal one direction only 'next' when perform insert and remove
         mapping(uint256 => uint256) n;
     }
 
     uint8 private constant sn = 0;
-    uint128 private constant mn = type(uint128).max;
 
     function get(
         List storage l,
@@ -49,55 +49,130 @@ library PU128LL {
 
         for (uint128 i = 0; c != sn; i++) {
             lm[i] = c;
-            c = uint128(l.n[c] & mn); // Move to the next node
+            c = uint128(l.n[c]);
         }
     }
 
+    function rlist(List storage l) internal view returns (uint128[] memory lm) {
+        lm = new uint128[](l.s);
+        uint128 c = back(l);
+
+        for (uint128 i = 0; c != sn; i++) {
+            lm[i] = c;
+            c = uint128(l.n[c] >> 128);
+        }
+    }
+
+    /// @custom:gas-inefficiency O(n/2)
     function remove(List storage l, uint128 e) internal returns (bool r) {
         if (find(l, e)) {
             (uint128 f, uint128 b) = get(l, sn);
-            (uint128 af, uint128 bf) = get(l, e);
-            if (e == f) {
+            uint128 mid = l.md;
+            uint128 s = l.s;
+            if (s == 1) {
+                l.n[sn] = 0;
+                l.md = 0;
+            } else if (e == f) {
                 // pop_front
-                set(l, sn, af, b)
+                (, uint128 b) = get(l, sn);
+                (uint128 af, ) = get(l, e);
+                (uint128 afx, ) = get(l, af);
+                set(l, sn, af, b); // set sentinel node{next:after element, prev:back}
+                set(l, af, afx, sn); // set new front node{next:after front, prev:sentinel}
             } else if (e == b) {
                 // pop_back
-                set(l, sn, f, bf)
+                (uint128 f, ) = get(l, sn);
+                (, uint128 bf) = get(l, e);
+                (, uint128 bfx) = get(l, bf);
+                set(l, sn, f, bf); // set sentinel node{next:front, prev:before element}
+                set(l, bf, sn, bfx); // set new back node{next:sentinel, prev:before back}
             } else {
-                // pop
-                // @TODO
+                uint128 cur;
+                if (e > mid) {
+                    cur = f;
+                    while (cur < e) {
+                        (cur, ) = get(l, cur);
+                    }
+                }
+                if (e < mid) {
+                    cur = b;
+                    while (cur > e) {
+                        (, cur) = get(l, cur);
+                    }
+                }
+                (uint128 n, uint128 p) = get(l, cur);
+                (, uint128 bfx) = get(l, n);
+                (uint128 afx, ) = get(l, p);
+                set(l, p, n, bfx);
+                set(l, n, afx, p);
             }
-            // clear
-            set(l, e, sn, sn)
-            l.s--;
+            l.n[e] = 0;
+            l.s = s - 1;
+            if (s > 1) {
+                if (s % 2 == 0) {
+                    (, mid) = get(l, mid); // move midpoint backward
+                } else {
+                    (mid, ) = get(l, mid); // move midpoint forward
+                }
+                l.md = mid;
+            }
             r = true;
         }
     }
 
+    /// @custom:gas-inefficiency O(n/2)
     function insert(List storage l, uint128 e) internal returns (bool r) {
         if (!find(l, e)) {
-            if (l.s == 0) {
-                // Initialize the list with the first element
-                set(l, sn, e, e);
-                set(l, e, sn, sn);
+            uint128 s = l.s;
+            if (s == 0) {
+                set(l, sn, e, e); // set sentinel
+                set(l, e, sn, sn); // set element
+                l.md = e; // set mid
             } else {
-                (uint128 f, uint128 b) = get(l, sn); // Direct assignment of returned tuple to `f` and `b`
+                (uint128 f, uint128 b) = get(l, sn);
+                uint128 mid = l.md;
                 if (e < f) {
                     // push_front
-                    set(l, e, f, sn); // New element points to old head
-                    set(l, sn, e, b); // Sentinel's next points to new head
-                    set(l, f, uint128(l.n[f]), e); // Old head’s prev points to new head
+                    (uint128 af, ) = get(l, f);
+                    set(l, e, f, sn); // set element node{next:front, prev:sentinel}
+                    set(l, sn, e, b); // set sentinel node{next:element, prev:back}
+                    set(l, f, af, e); // set old front node{next:after front, prev:element}
+                    if (s > 1) {
+                        (, mid) = get(l, mid); // move midpoint backward
+                    }
                 } else if (e > b) {
                     // push_back
-                    set(l, e, sn, b); // New element points to sentinel as next and old back as prev
-                    set(l, sn, f, e); // Sentinel’s prev points to new back
-                    set(l, b, e, uint128((l.n[b]))); // Old back’s next points to new back
+                    (, uint128 bf) = get(l, b);
+                    set(l, e, sn, b); // set element node{next:sentinel, prev:back}
+                    set(l, sn, f, e); // set sentinel node{next:front, prev:element}
+                    set(l, b, e, bf); // set old back node{next:element prev:before back}
+                    if (s > 1) {
+                        (mid, ) = get(l, l.md); // move midpoint forward
+                    }
                 } else {
-                    // push
-                    // @TODO
+                    uint128 cur;
+                    if (e < mid) {
+                        (, mid) = get(l, mid);
+                        cur = f;
+                        while (e > cur) {
+                            (cur, ) = get(l, cur);
+                        }
+                    }
+                    if (e > mid) {
+                        (mid, ) = get(l, mid);
+                        cur = b;
+                        while (e < cur) {
+                            (, cur) = get(l, cur);
+                        }
+                    }
+                    (uint128 n, uint128 p) = get(l, cur);
+                    set(l, e, cur, p); // set new element's next to cur and prev to p
+                    set(l, p, e, n); // set previous node's next to new element and new element's next to n
+                    set(l, n, e, cur); // update cur's previous to the new element
                 }
+                l.md = mid;
             }
-            l.s++;
+            l.s = s + 1;
             r = true;
         }
     }
