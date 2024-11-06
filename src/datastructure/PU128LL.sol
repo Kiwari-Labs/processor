@@ -99,7 +99,7 @@ library PU128LL {
             set(l, e, f, sn); // set element node{next:front, prev:sentinel}
             set(l, sn, e, b); // set sentinel node{next:element, prev:back}
             set(l, f, af, e); // set old front node{next:after front, prev:element}
-            if (s & 2 == 0) {
+            if (s & 2 == 1) {
                 (, mid) = get(l, mid); // move midpoint backward
             }
         } else if (e > b) {
@@ -108,7 +108,7 @@ library PU128LL {
             set(l, e, sn, b); // set element node{next:sentinel, prev:back}
             set(l, sn, f, e); // set sentinel node{next:front, prev:element}
             set(l, b, e, bf); // set old back node{next:element prev:before back}
-            if (s & 2 == 1) {
+            if (s & 2 == 0) {
                 (mid, ) = get(l, l.mid); // move midpoint forward
             }
         } else {
