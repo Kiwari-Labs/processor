@@ -76,17 +76,31 @@ library PU128LL {
             set(l, af, afx, bf);
             l.n[e] = 0;
             l.size = s - 1;
-            // adjust midpoint 's' still old cache
-            if (s % 2 == 0) {
-                // If the size was even, we need to move `mid` backward if `e` was after `mid`, or keep it otherwise
-                if (e > mid) {
-                    (, l.mid) = get(l, mid); // move mid backward
+            // Adjust midpoint after removal
+            if (e == mid) {
+                // If the removed element was the midpoint
+                if (s % 2 == 0) {
+                    // If the size was even before removal, move the midpoint forward
+                    l.mid = bf; // Move midpoint to the next element after the old midpoint
+                } else {
+                    // If the size was odd before removal, move the midpoint backward
+                    l.mid = af; // Move midpoint to the previous element before the old midpoint
+                }
+            } else if (s > 1) {
+                if (s % 2 == 0) {
+                    // If the size was even before removal, we need to move the midpoint backward
+                    if (e > mid) {
+                        (, l.mid) = get(l, mid); // Move mid backward
+                    }
+                } else {
+                    // If the size was odd before removal, we need to move the midpoint forward
+                    if (e < mid) {
+                        (l.mid, ) = get(l, mid); // Move mid forward
+                    }
                 }
             } else {
-                // If the size was odd, we need to move `mid` forward if `e` was before `mid`, or keep it otherwise
-                if (e < mid) {
-                    (l.mid, ) = get(l, mid); // move mid forward
-                }
+                // If the list is empty after removal, reset the midpoint to sentinel value (0)
+                l.mid = 0;
             }
             r = true;
         }
