@@ -11,22 +11,22 @@ library PU128LL {
     using P2U128 for uint256;
 
     struct List {
-        uint128 s;
-        uint128 md; // enabling traversal one direction only 'next' when perform insert and remove
-        mapping(uint256 => uint256) n;
+        uint128 size;
+        uint128 mid; // enabling traversal one direction only 'next' when perform insert and remove
+        mapping(uint128 => uint256) n;
     }
 
     uint8 private constant sn = 0;
+
+    function set(List storage l, uint128 e, uint128 n, uint128 p) private {
+        l.n[e] = P2U128.pack(n, p);
+    }
 
     function get(
         List storage l,
         uint128 e
     ) internal view returns (uint128 n, uint128 p) {
         return l.n[e].unpack();
-    }
-
-    function set(List storage l, uint128 e, uint128 n, uint128 p) private {
-        l.n[e] = P2U128.pack(n, p);
     }
 
     function back(List storage l) internal view returns (uint128 b) {
@@ -37,84 +37,55 @@ library PU128LL {
         (f, ) = l.n[sn].unpack();
     }
 
-    function find(List storage l, uint256 e) internal view returns (bool r) {
+    function find(List storage l, uint128 e) internal view returns (bool r) {
         (uint128 n, ) = l.n[sn].unpack();
         (, uint128 p) = l.n[e].unpack();
-        r = p > 0 || n == e;
+        assembly {
+            r := or(gt(p, 0), eq(n, e))
+        }
     }
 
+    /// @custom:gas-inefficiency O(n)
     function list(List storage l) internal view returns (uint128[] memory lm) {
-        lm = new uint128[](l.s);
+        lm = new uint128[](l.size);
         uint128 c = front(l);
 
         for (uint128 i = 0; c != sn; i++) {
             lm[i] = c;
-            c = uint128(l.n[c]);
+            (c, ) = l.n[c].unpack(); // use unpack to get the next node
         }
     }
 
+    /// @custom:gas-inefficiency O(n)
     function rlist(List storage l) internal view returns (uint128[] memory lm) {
-        lm = new uint128[](l.s);
+        lm = new uint128[](l.size);
         uint128 c = back(l);
 
         for (uint128 i = 0; c != sn; i++) {
             lm[i] = c;
-            c = uint128(l.n[c] >> 128);
+            (, c) = l.n[c].unpack(); // use unpack to get the previous node
         }
     }
 
     /// @custom:gas-inefficiency O(n/2)
     function remove(List storage l, uint128 e) internal returns (bool r) {
         if (find(l, e)) {
-            (uint128 f, uint128 b) = get(l, sn);
-            uint128 mid = l.md;
-            uint128 s = l.s;
-            if (s == 1) {
-                l.n[sn] = 0;
-                l.md = 0;
-            } else if (e == f) {
-                // pop_front
-                (, uint128 b) = get(l, sn);
-                (uint128 af, ) = get(l, e);
-                (uint128 afx, ) = get(l, af);
-                set(l, sn, af, b); // set sentinel node{next:after element, prev:back}
-                set(l, af, afx, sn); // set new front node{next:after front, prev:sentinel}
-            } else if (e == b) {
-                // pop_back
-                (uint128 f, ) = get(l, sn);
-                (, uint128 bf) = get(l, e);
-                (, uint128 bfx) = get(l, bf);
-                set(l, sn, f, bf); // set sentinel node{next:front, prev:before element}
-                set(l, bf, sn, bfx); // set new back node{next:sentinel, prev:before back}
-            } else {
-                uint128 cur;
-                if (e > mid) {
-                    cur = f;
-                    while (cur < e) {
-                        (cur, ) = get(l, cur);
-                    }
-                }
-                if (e < mid) {
-                    cur = b;
-                    while (cur > e) {
-                        (, cur) = get(l, cur);
-                    }
-                }
-                (uint128 n, uint128 p) = get(l, cur);
-                (, uint128 bfx) = get(l, n);
-                (uint128 afx, ) = get(l, p);
-                set(l, p, n, bfx);
-                set(l, n, afx, p);
-            }
+            uint128 s = l.size;
+            (uint128 af, uint128 bf) = get(l, e);
+            (, uint128 bfx) = get(l, bf);
+            (uint128 afx, ) = get(l, af);
+            set(l, bf, af, bfx);
+            set(l, af, afx, bf);
             l.n[e] = 0;
-            l.s = s - 1;
+            l.size = s - 1;
             if (s > 1) {
+                uint128 mid = l.mid;
                 if (s & 2 == 0) {
                     (, mid) = get(l, mid); // move midpoint backward
                 } else {
                     (mid, ) = get(l, mid); // move midpoint forward
                 }
-                l.md = mid;
+                l.mid = mid;
             }
             r = true;
         }
@@ -122,62 +93,56 @@ library PU128LL {
 
     /// @custom:gas-inefficiency O(n/2)
     function insert(List storage l, uint128 e) internal returns (bool r) {
-        if (!find(l, e)) {
-            uint128 s = l.s;
-            if (s == 0) {
-                set(l, sn, e, e); // set sentinel
-                set(l, e, sn, sn); // set element
-                l.md = e; // set mid
-            } else {
-                (uint128 f, uint128 b) = get(l, sn);
-                uint128 mid = l.md;
-                if (e < f) {
-                    // push_front
-                    (uint128 af, ) = get(l, f);
-                    set(l, e, f, sn); // set element node{next:front, prev:sentinel}
-                    set(l, sn, e, b); // set sentinel node{next:element, prev:back}
-                    set(l, f, af, e); // set old front node{next:after front, prev:element}
-                    if (s & 2 == 0) {
-                        (, mid) = get(l, mid); // Move midpoint backward
-                    }
-                } else if (e > b) {
-                    // push_back
-                    (, uint128 bf) = get(l, b);
-                    set(l, e, sn, b); // set element node{next:sentinel, prev:back}
-                    set(l, sn, f, e); // set sentinel node{next:front, prev:element}
-                    set(l, b, e, bf); // set old back node{next:element prev:before back}
-                    if (s & 2 == 1) {
-                        (mid, ) = get(l, l.md); // move midpoint forward
-                    }
-                } else {
-                    uint128 cur;
-                    if (e < mid) {
-                        (, mid) = get(l, mid);
-                        cur = f;
-                        while (e > cur) {
-                            (cur, ) = get(l, cur);
-                        }
-                    }
-                    if (e > mid) {
-                        (mid, ) = get(l, mid);
-                        cur = b;
-                        while (e < cur) {
-                            (, cur) = get(l, cur);
-                        }
-                    }
-                    (uint128 n, uint128 p) = get(l, cur);
-                    set(l, e, cur, p); // set new element's next to cur and prev to p
-                    set(l, p, e, n); // set previous node's next to new element and new element's next to n
-                    set(l, n, e, cur); // update cur's previous to the new element
-                }
-                l.md = mid;
+        if (find(l, e)) return false;
+        uint128 s = l.size;
+        (uint128 f, uint128 b) = get(l, sn);
+        uint128 mid = l.mid;
+        if (s == 0) {
+            set(l, sn, e, e); // set sentinel
+            set(l, e, sn, sn); // set element
+            l.mid = e; // set mid
+        } else if (e < f) {
+            // push_front
+            (uint128 af, ) = get(l, f);
+            set(l, e, f, sn); // set element node{next:front, prev:sentinel}
+            set(l, sn, e, b); // set sentinel node{next:element, prev:back}
+            set(l, f, af, e); // set old front node{next:after front, prev:element}
+            if (s & 2 == 0) {
+                (, mid) = get(l, mid); // move midpoint backward
             }
-            l.s = s + 1;
-            r = true;
+        } else if (e > b) {
+            // push_back
+            (, uint128 bf) = get(l, b);
+            set(l, e, sn, b); // set element node{next:sentinel, prev:back}
+            set(l, sn, f, e); // set sentinel node{next:front, prev:element}
+            set(l, b, e, bf); // set old back node{next:element prev:before back}
+            if (s & 2 == 1) {
+                (mid, ) = get(l, l.mid); // move midpoint forward
+            }
+        } else {
+            uint128 cur;
+            if (e < mid) {
+                (cur, ) = get(l, f);
+                while (e > cur) {
+                    (cur, ) = get(l, cur);
+                }
+                (, mid) = get(l, mid); // move midpoint backward
+            }
+            if (e > mid) {
+                (cur, ) = get(l, mid);
+                while (e < cur) {
+                    (cur, ) = get(l, cur);
+                }
+                (mid, ) = get(l, mid); // move midpoint forward
+            }
+            (uint128 af, uint128 bf) = get(l, cur);
+            (, uint128 bfx) = get(l, bf);
+            set(l, e, cur, bf);
+            set(l, cur, af, e);
+            set(l, bf, e, bfx);
         }
-    }
-
-    function size(List storage l) internal view returns (uint128) {
-        return l.s;
+        l.mid = mid;
+        l.size = s + 1;
+        r = true;
     }
 }

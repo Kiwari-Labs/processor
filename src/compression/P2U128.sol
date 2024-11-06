@@ -10,7 +10,7 @@ library P2U128 {
         uint128 ub
     ) internal pure returns (uint256 result) {
         assembly {
-            result := or(shl(0x80, lb), ub)
+            result := or(shl(0x80, ub), lb)
         }
     }
 
