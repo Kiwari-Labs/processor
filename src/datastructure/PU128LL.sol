@@ -49,7 +49,6 @@ library PU128LL {
     function list(List storage l) internal view returns (uint128[] memory lm) {
         lm = new uint128[](l.size);
         uint128 c = front(l);
-
         for (uint128 i = 0; c != sn; i++) {
             lm[i] = c;
             (c, ) = l.n[c].unpack(); // use unpack to get the next node
@@ -60,17 +59,16 @@ library PU128LL {
     function rlist(List storage l) internal view returns (uint128[] memory lm) {
         lm = new uint128[](l.size);
         uint128 c = back(l);
-
         for (uint128 i = 0; c != sn; i++) {
             lm[i] = c;
             (, c) = l.n[c].unpack(); // use unpack to get the previous node
         }
     }
 
-    /// @custom:gas-inefficiency O(n/2)
     function remove(List storage l, uint128 e) internal returns (bool r) {
         if (find(l, e)) {
             uint128 s = l.size;
+            uint128 mid = l.mid;
             (uint128 af, uint128 bf) = get(l, e);
             (, uint128 bfx) = get(l, bf);
             (uint128 afx, ) = get(l, af);
@@ -78,7 +76,18 @@ library PU128LL {
             set(l, af, afx, bf);
             l.n[e] = 0;
             l.size = s - 1;
-            // @TODO maintain mid
+            // adjust midpoint 's' still old cache
+            if (s % 2 == 0) {
+                // If the size was even, we need to move `mid` backward if `e` was after `mid`, or keep it otherwise
+                if (e > mid) {
+                    (, l.mid) = get(l, mid); // move mid backward
+                }
+            } else {
+                // If the size was odd, we need to move `mid` forward if `e` was before `mid`, or keep it otherwise
+                if (e < mid) {
+                    (l.mid, ) = get(l, mid); // move mid forward
+                }
+            }
             r = true;
         }
     }
@@ -99,8 +108,9 @@ library PU128LL {
             set(l, e, f, sn); // set element node{next:front, prev:sentinel}
             set(l, sn, e, b); // set sentinel node{next:element, prev:back}
             set(l, f, af, e); // set old front node{next:after front, prev:element}
-            if (s & 2 == 1) {
-                (, mid) = get(l, mid); // move midpoint backward
+            // shift midpoint only if size was odd (meaning mid needs to move back)
+            if (s % 2 == 1) {
+                (, l.mid) = get(l, mid); // move mid backward
             }
         } else if (e > b) {
             // push_back
@@ -108,22 +118,33 @@ library PU128LL {
             set(l, e, sn, b); // set element node{next:sentinel, prev:back}
             set(l, sn, f, e); // set sentinel node{next:front, prev:element}
             set(l, b, e, bf); // set old back node{next:element prev:before back}
-            if (s & 2 == 0) {
-                (mid, ) = get(l, l.mid); // move midpoint forward
+            // shift midpoint forward only if size was even
+            if (s % 2 == 0) {
+                (l.mid, ) = get(l, mid); // move mid forward
             }
         } else {
-            // @TODO maintain mid
-            uint128 cur = f;
+            uint128 cur = e > mid ? mid : f;
             while (e > cur) {
                 (cur, ) = get(l, cur);
             }
             (uint128 af, uint128 bf) = get(l, cur);
             (, uint128 bfx) = get(l, bf);
-            set(l, e, cur, bf);
-            set(l, cur, af, e);
-            set(l, bf, e, bfx);
+            set(l, e, cur, bf); // set new element
+            set(l, cur, af, e); // update surrounding nodes
+            set(l, bf, e, bfx); // update next node's prev
+            // adjust midpoint based on position of new element
+            if (e > mid) {
+                // new element is after mid, so move mid forward if size was even
+                if (s % 2 == 0) {
+                    (l.mid, ) = get(l, mid); // move mid forward
+                }
+            } else {
+                // new element is before mid, so move mid backward if size was odd
+                if (s % 2 == 1) {
+                    (, l.mid) = get(l, mid); // move mid backward
+                }
+            }
         }
-        l.mid = mid;
         l.size = s + 1;
         r = true;
     }
