@@ -78,15 +78,7 @@ library PU128LL {
             set(l, af, afx, bf);
             l.n[e] = 0;
             l.size = s - 1;
-            if (s > 1) {
-                uint128 mid = l.mid;
-                if (s & 2 == 0) {
-                    (, mid) = get(l, mid); // move midpoint backward
-                } else {
-                    (mid, ) = get(l, mid); // move midpoint forward
-                }
-                l.mid = mid;
-            }
+            // @TODO maintain mid
             r = true;
         }
     }
@@ -120,20 +112,10 @@ library PU128LL {
                 (mid, ) = get(l, l.mid); // move midpoint forward
             }
         } else {
-            uint128 cur;
-            if (e < mid) {
-                (cur, ) = get(l, f);
-                while (e > cur) {
-                    (cur, ) = get(l, cur);
-                }
-                (, mid) = get(l, mid); // move midpoint backward
-            }
-            if (e > mid) {
-                (cur, ) = get(l, mid);
-                while (e < cur) {
-                    (cur, ) = get(l, cur);
-                }
-                (mid, ) = get(l, mid); // move midpoint forward
+            // @TODO maintain mid
+            uint128 cur = f;
+            while (e > cur) {
+                (cur, ) = get(l, cur);
             }
             (uint128 af, uint128 bf) = get(l, cur);
             (, uint128 bfx) = get(l, bf);
