@@ -6,3 +6,4 @@
 solc_version = '0.8.17'
 auto_detect_solc = false
 optimizer_runs = 1_000
+gas_limit = 4_294_964_296 # unsigned integer 32 bit.
