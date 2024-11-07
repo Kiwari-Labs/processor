@@ -5,42 +5,57 @@ pragma solidity ^0.8.0;
 /// @dev Stores two 128-bit pointers (next and prev) in a single 256-bit storage slot to reduce storage accesses and costs.
 /// @author Kiwari Labs
 
-import {P2U128} from "../compression/P2U128.sol";
-
 library PU128LL {
-    using P2U128 for uint256;
-
     struct List {
-        uint128 size;
+        uint128 size; // pack size and mind into 1
         uint128 mid; // enabling traversal one direction only 'next' when perform insert and remove
-        mapping(uint128 => uint256) n;
     }
 
     uint8 private constant sn = 0;
 
+    uint256 constant base = 0xFFFFFF;
+
     function set(List storage l, uint128 e, uint128 n, uint128 p) private {
-        l.n[e] = P2U128.pack(n, p);
+        assembly {
+            sstore(xor(xor(l.slot, base), e), or(shl(0x80, p), n))
+        }
     }
 
     function get(
         List storage l,
         uint128 e
     ) internal view returns (uint128 n, uint128 p) {
-        return l.n[e].unpack();
+        assembly {
+            let data := sload(xor(xor(l.slot, base), e))
+            n := and(data, 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF)
+            p := shr(0x80, data)
+        }
     }
 
     function back(List storage l) internal view returns (uint128 b) {
-        (, b) = l.n[sn].unpack();
+        assembly {
+            // let data := sload(xor(xor(l.slot, base), sn))
+            b := shr(0x80, sload(xor(xor(l.slot, base), sn)))
+        }
     }
 
     function front(List storage l) internal view returns (uint128 f) {
-        (f, ) = l.n[sn].unpack();
+        assembly {
+            // let data := sload(xor(xor(l.slot, base), sn))
+            f := and(
+                sload(xor(xor(l.slot, base), sn)),
+                0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+            )
+        }
     }
 
     function find(List storage l, uint128 e) internal view returns (bool r) {
-        (uint128 n, ) = l.n[sn].unpack();
-        (, uint128 p) = l.n[e].unpack();
         assembly {
+            let n := and(
+                sload(xor(xor(l.slot, base), sn)),
+                0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+            )
+            let p := shr(0x80, sload(xor(xor(l.slot, base), e)))
             r := or(gt(p, 0), eq(n, e))
         }
     }
@@ -51,7 +66,7 @@ library PU128LL {
         uint128 c = front(l);
         for (uint128 i = 0; c != sn; i++) {
             lm[i] = c;
-            (c, ) = l.n[c].unpack(); // use unpack to get the next node
+            (c, ) = get(l, c); // use unpack to get the next node
         }
     }
 
@@ -61,7 +76,7 @@ library PU128LL {
         uint128 c = back(l);
         for (uint128 i = 0; c != sn; i++) {
             lm[i] = c;
-            (, c) = l.n[c].unpack(); // use unpack to get the previous node
+            (, c) = get(l, c); // use unpack to get the next node
         }
     }
 
@@ -74,7 +89,9 @@ library PU128LL {
             (uint128 afx, ) = get(l, af);
             set(l, bf, af, bfx);
             set(l, af, afx, bf);
-            l.n[e] = 0;
+            assembly {
+                sstore(xor(xor(l.slot, base), e), sn)
+            }
             l.size = s - 1;
             // Adjust midpoint after removal
             if (e == mid) {
